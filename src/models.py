@@ -62,8 +62,9 @@ class TCNBlock(nn.Module):
     
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, num_classes: int, sequence_length: int = 60, loss = nn.CrossEntropyLoss()):
+    def __init__(self, in_channels, num_classes: int, sequence_length: int = 60, loss = nn.CrossEntropyLoss()):
         super().__init__()
+        self.in_channels = in_channels
         self.num_classes = num_classes
         self.loss = loss
         self.sequence_length = sequence_length
@@ -252,19 +253,20 @@ class CNN_LSTM(BaseModel):
 class TCN(BaseModel):
 
     def __init__(self, in_channels=8,  num_classes=7, dropout=0.2, loss = None):
-        super().__init__(num_classes, loss=loss)
+        super().__init__(in_channels=in_channels, num_classes=num_classes, loss=loss)
         self.block1 = TCNBlock(in_channels, 32, kernel_size=3, dilation=1, padding=2, dropout=dropout)
         self.block2 = TCNBlock(32, 32, kernel_size=3, dilation=2, padding=4, dropout=dropout)
         self.block3 = TCNBlock(32, 64, kernel_size=3, dilation=4, padding=8, dropout=dropout)
         self.block4 = TCNBlock(64, 128, kernel_size=3, dilation=8, padding=16, dropout=dropout)
-        self.fc = nn.Linear(128 * self.sequence_length, num_classes)
+        self.fc = nn.Linear(128, num_classes)
 
-    def forward(self, x):
+    def forward(self, x):   
         x = self.block1(x)
         x = self.block2(x)
         x = self.block3(x)
         x = self.block4(x)
-        x = x.view(x.size(0), -1)
+        # global average pooling for embedding
+        x = torch.mean(x, dim=2)
         x = self.fc(x)
         return x
     
@@ -326,11 +328,9 @@ class MESTNet(BaseModel):
             scales: int, 
             num_classes: int, 
             wavelet: str = 'morl', 
-            da_loss = None,
-            loss: nn.Module = nn.CrossEntropyLoss(),
-            C: float = 1,
+            loss = None,
         ):
-        super().__init__(num_classes=num_classes, loss=loss)
+        super().__init__(in_channels=in_channels, num_classes=num_classes, loss=loss)
 
         self.time_branch = SingleBranch(in_channels=in_channels)
         self.freq_branch = SingleBranch(in_channels=in_channels*scales)
@@ -339,12 +339,7 @@ class MESTNet(BaseModel):
 
         self.scales = np.arange(1, scales+1)
         self.wavelet = wavelet
-        self.C = C
-        self.loss = loss
 
-        if da_loss is not None:
-            self.da_loss = da_loss
-     
     def _get_cwt(self, x):
         
         b, c, t = x.shape
@@ -356,32 +351,19 @@ class MESTNet(BaseModel):
 
         return cwt_out.to(dtype=torch.float32)
     
-    def _get_embedding(self, input):
+    def forward(self, source_input, target_input=None):
+        # Input: time-freq merged -> (channels+freq_scales, timesteps)
 
         t = self.time_branch(input)   # [B, T, 128]
         f = self.freq_branch(self._get_cwt(input))  # [B, T, 128]
 
         gru_out, _ = self.bigru(torch.cat((t, f), dim=2)) # [B, T, 256]
 
-        return gru_out[:, -1, :] # [B, 256]
-    
-    def forward(self, source_input, target_input=None):
-        # Input: time-freq merged -> (channels+freq_scales, timesteps)
-
-        source_feats = self._get_embedding(source_input)
-        logits = self.classifier(source_feats)
-
-        if target_input is not None:
-            target_feats = self._get_embedding(target_input)
-            return logits, source_feats, target_feats
+        logits = self.classifier(gru_out[:, -1, :]) # use only last timestep output for projection
         
         return logits    # [B, num_classes]
 
     def training_step(self, batch, batch_idx):
-
-        if len(batch) > 2:
-            return self._train_step_da(batch, batch_idx=batch_idx)
-
         source_sample, source_label = batch
 
         # 1. Forward pass for source and target
@@ -394,10 +376,58 @@ class MESTNet(BaseModel):
 
         return loss
     
-    def _train_step_da(self, batch, batch_idx):
+    # pure prediction-label cross entropy / accuracy
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+
+        source_sample, source_label = batch # No need for target_sample in validation for classification metric
+        source_logits = self(source_sample)
+        val_loss = self.loss(source_logits, source_label)
+        
+        preds = torch.argmax(source_logits, dim=1)
+        acc = (preds == source_label).float().mean()
+
+        self.log('val_loss', val_loss, on_step=False, on_epoch=True)
+        self.log('val_acc', acc, on_step=False, on_epoch=True)
+        return val_loss
+
+
+class MESTNet_DA(MESTNet):
+    def __init__(self, 
+            in_channels: int, 
+            scales: int, 
+            num_classes: int, 
+            loss: nn.Module,
+            wavelet: str = 'morl', 
+            da_loss = None,
+        ):
+
+        super().__init__(in_channels=in_channels, scales=scales, num_classes=num_classes, wavelet=wavelet, loss=loss)
+
+        self.da_loss = da_loss
+
+    def _get_embedding(self, input):
+
+        t = self.time_branch(input)   # [B, T, 128]
+        f = self.freq_branch(self._get_cwt(input))  # [B, T, 128]
+
+        gru_out, _ = self.bigru(torch.cat((t, f), dim=2)) # [B, T, 256]
+
+        return gru_out[:, -1, :] # [B, 256]
+
+    def forward(self, source_input, target_input=None):
+        # Input: time-freq merged -> (channels+freq_scales, timesteps)
+
+        source_feats = self._get_embedding(source_input)
+        logits = self.classifier(source_feats)
+
+        
+        target_feats = self._get_embedding(target_input)
+        return logits, source_feats, target_feats
+        
+    def training_step(self, batch, batch_idx):
 
         source_sample, source_label, target_sample = batch
-         # 1. Forward pass for source and target
+            # 1. Forward pass for source and target
         source_logits, source_features, target_features = self(source_sample, target_input=target_sample)
 
         # 2. Calculate Classification Loss (on source data)
@@ -415,30 +445,22 @@ class MESTNet(BaseModel):
 
         return total_loss
 
-    # pure prediction-label cross entropy / accuracy
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-
-        source_sample, source_label = batch # No need for target_sample in validation for classification metric
-        source_logits = self(source_sample)
-        val_loss = self.loss(source_logits, source_label)
-        
-        preds = torch.argmax(source_logits, dim=1)
-        acc = (preds == source_label).float().mean()
-
-        self.log('val_loss', val_loss, on_step=False, on_epoch=True)
-        self.log('val_acc', acc, on_step=False, on_epoch=True)
-        return val_loss
 
 
 if __name__ == "__main__":
 
-    mestnet = MESTNet(in_channels=8, num_classes=7, wavelet='morl', scales=32, lr=0.003, C=1)
-    num_params = sum(p.numel() for p in mestnet.parameters() if p.requires_grad)
+    from loss import MMDLoss
+    import torch.nn as nn
 
-    data_file = 'data.h5'
+    da_loss = MMDLoss()
+
+    model = MESTNet(in_channels=8, num_classes=7, loss=nn.CrossEntropyLoss(), wavelet='morl', scales=32)
+
+    mestnet = MESTNet_DA(in_channels=8, num_classes=7, wavelet='morl', scales=32, da_loss=da_loss, loss=nn.CrossEntropyLoss())
 
     input = torch.rand(size=(256, 8, 60))
+    target_input = torch.rand(size=(256, 8, 60))
 
-    output = mestnet(input)
+    output = model(input)
 
-    print(output.shape) # (256, 7)
+    print(output.shape)

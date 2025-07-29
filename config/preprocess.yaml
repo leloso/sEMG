@@ -1,0 +1,13 @@
+# config.yaml
+preprocessing:
+  samples_to_remove: 400
+  butter_order: 5
+  butter_lowcut: 20
+  butter_highcut: 95
+  fs: 200
+  notch_freq: 50
+  notch_q: 30
+
+windowing:
+  window_size: 60
+  stride: 6

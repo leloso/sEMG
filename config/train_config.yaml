@@ -1,0 +1,44 @@
+# config.yaml
+dataset:
+  data_file: 'path_to_h5_file'
+  channels: 8
+  classes: 7
+  scales: 32
+  wavelet: morl
+
+filter: # ~ on anyone implies all considered
+  positions: ~
+  subjects: [14, 15, 16, 17, 19, 20, 21, 22, 24, 25, 26, 27]
+  sessions: 0
+
+experiment:
+  factor: electrode_shift
+
+model:
+  name: MESTNet
+
+training:
+  batch_size: 256
+  num_workers: 4
+  epochs: 1000
+  lr: 3.0e-3
+  compile: False
+
+validation:
+  batch_size: 512
+  val_split: 20 # out of 100
+  num_workers: 4
+
+optimizer:
+  name: Adam
+  lr: 0.003
+
+early_stop:
+  monitor: val_accuracy
+  min_delta: 0.005
+  patience: 10
+  mode: max
+
+finetuning:
+  epochs: 10
+  lr: 5.0e-5

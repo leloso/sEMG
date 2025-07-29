@@ -1,11 +1,11 @@
 from typing import Optional
+import gc
 
 import numpy as np
 import h5py
 import torch
 from torch.utils.data import Dataset
 
-from utils import filter_data_from_h5
 
 
 
@@ -24,11 +24,9 @@ class BaseDataset(Dataset):
         idxs = None,
         load_in_memory: bool = True,
         subset: Optional[float] = None, 
-        transform=None
     ):
 
         self.data_file = data_file
-        self.transform = transform
         self.idxs = idxs
         self.load_in_memory = load_in_memory
         self.subset = subset
@@ -38,14 +36,14 @@ class BaseDataset(Dataset):
         if self.load_in_memory == True:
             self.samples, self.labels = self._load_data(self.idxs)
 
-        if self.subset is not None:
-            size = round(subset * len(self.idxs))
-            keep_indices = np.random.choice(len(self.idxs), size, replace=False)
-            self.size = keep_indices.size
-            mask = np.zeros(len(self.idxs), dtype=bool)
-            mask[keep_indices] = True
-            self.samples = self.samples[mask]
-            self.labels = self.labels[mask]
+            if self.subset is not None:
+                size = round(subset * len(self.idxs))
+                keep_indices = np.random.choice(len(self.idxs), size, replace=False)
+                self.size = keep_indices.size
+                mask = np.zeros(len(self.idxs), dtype=bool)
+                mask[keep_indices] = True
+                self.samples = self.samples[mask]
+                self.labels = self.labels[mask]
 
     def _load_data(self, idxs):
         """
@@ -91,11 +89,18 @@ class BaseDataset(Dataset):
             sample = self.data_file['samples'][i]
             label = self.data_file['labels'][i]
 
-        if self.transform:
-            sample = self.transform(sample)
-
         # Assuming labels are already in a suitable format (e.g., integers)
         return torch.from_numpy(sample).float(), torch.tensor(label).long()
+    
+    def __del__(self):
+        """Destructor to clean up memory when dataset is deleted"""
+        if hasattr(self, 'samples'):            
+            # Delete the array
+            del self.samples
+            
+            # Force garbage collection
+            gc.collect()
+            print("Memory cleanup completed")
 
 
 class DomainAdaptationDataset(BaseDataset):
@@ -135,6 +140,9 @@ class DomainAdaptationDataset(BaseDataset):
 
 # Example usage (for testing the dataset class)
 if __name__ == '__main__':
+
+    from utils import filter_data_from_h5
+
     data_file = 'data.h5'
 
     idxs = filter_data_from_h5(
