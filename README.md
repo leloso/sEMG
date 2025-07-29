@@ -22,7 +22,24 @@ Before you begin, ensure you have the following installed:
 
 1. **Clone the repository**:  
    git clone https://github.com/your-repo/your-project-name.git  
-   cd your-project-name
+   cd robust-semg
 
 2. **Install Python dependencies**:  
    pip install \-r requirements.txt
+
+## **📖 Usage**
+
+Follow these steps to process the SeNic dataset:
+
+### **1\. Acquire Raw Data**
+
+First, download the raw .rar data files from the [SeNic GitHub repository](https://www.google.com/search?q=https://github.com/BoZhuBo/SeNic.git). Place these files in a designated root directory (e.g., raw\_data/).
+
+### **2\. Extract RAR Archives**
+
+Use the unrar\_script.py to extract the contents of the .rar files. This script will recursively search for .rar files and extract them.  
+python unrar\_script.py \<directory\_path\> \[--delete\]
+
+* \<directory\_path\>: The root directory where your .rar files are located (e.g., raw\_data).  
+* \--delete: (Optional) If present, .rar files will be deleted after successful extraction.
+
