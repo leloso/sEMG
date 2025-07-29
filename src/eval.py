@@ -48,15 +48,6 @@ if __name__ == '__main__':
         print(f"Error: Output path exists but is not a directory: {models_dir}", file=sys.stderr)
         sys.exit(1)
 
-    models_to_test = {
-        'TCN': models.TCN,
-        'CNN_GRU': models.CNN_GRU,
-        'CNN_BiGRU': models.CNN_BiGRU,
-        'CNN': models.CNN,
-        'CNN_LSTM': models.CNN_LSTM,
-        #'MESTNet': models.MESTNet
-    }
-
     if not os.path.exists(config_file_path):
         print(f"Error: Configuration file not found at {config_file_path}", file=sys.stderr)
         sys.exit(1)
@@ -82,9 +73,18 @@ if __name__ == '__main__':
 
     accuracies = {}
 
+    model_map = {
+        'CNN': models.CNN,
+        'CNN_GRU': models.CNN_GRU,
+        'CNN_BiGRU': models.CNN_BiGRU,
+        'CNN_LSTM': models.CNN_LSTM,
+        'TCN': models.TCN,
+        'MESTNet': models.MESTNet
+    }
+
     data_file = cfg['dataset']['data_file']
 
-    for model_name, model_class in models_to_test.items():
+    for model_name, model_class in model_map.items():
 
         # store per fold accuracies for the model in a dict.
         accuracies[model_name] = {}
@@ -92,17 +92,25 @@ if __name__ == '__main__':
         model_dir = os.path.join(models_dir, model_name)
 
         for r in range(3):
-            checkpoint_path = os.path.join(model_dir, f'best-model-{r}-v1.ckpt')
+            checkpoint_path = os.path.join(model_dir, f'r{r}-final.ckpt')
 
             if not os.path.isfile(checkpoint_path):
-                print(f"Skipping testing for model {model_name} and rep: {r}")
+                print(f"Skipping testing for model {model_name} and rep: {r}, checkpoint not found")
                 continue
 
+            kwargs = {
+                'in_channels': cfg['dataset']['channels'],
+                'num_classes':cfg['dataset']['classes'],
+                'loss': nn.CrossEntropyLoss()
+            }
 
-            best_model = model_class(
-                in_channels=cfg['dataset']['channels'],
-                num_classes = cfg['dataset']['classes'],
-                loss=nn.CrossEntropyLoss()
+            if model_class == models.MESTNet:
+                kwargs['wavelet'] = cfg['dataset']['wavelet']
+                kwargs['scales']= cfg['dataset']['scales']
+
+            best_model = model_class.load_from_checkpoint(
+                checkpoint_path,
+                **kwargs
             )
 
             test_idxs = filter_data_from_h5(

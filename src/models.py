@@ -113,7 +113,7 @@ class BaseModel(pl.LightningModule):
 
 class CNN(BaseModel):
     def __init__(self, in_channels, num_classes, loss):
-        super().__init__(num_classes, loss = loss)
+        super().__init__(in_channels=in_channels, num_classes=num_classes, loss = loss)
         self.conv_block1 = ConvBlock(in_channels, 64)
         self.conv_block2 = ConvBlock(64, 128, kernel_size=5)
         self.dropout = nn.Dropout()

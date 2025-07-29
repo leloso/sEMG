@@ -1,6 +1,6 @@
 # config.yaml
 dataset:
-  data_file: 'path_to_h5_file'
+  data_file: '/home/pantelis/Documents/SeNic/preprocessed_data/data.h5'
   channels: 8
   classes: 7
   scales: 32

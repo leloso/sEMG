@@ -1,5 +1,4 @@
 import os
-import gc
 import argparse
 import sys
 
