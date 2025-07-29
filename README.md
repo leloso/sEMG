@@ -17,3 +17,12 @@ Before you begin, ensure you have the following installed:
 
 * Python 3.8+  
 * unrar command-line tool (install via your system's package manager, e.g., sudo apt-get install unrar on Debian/Ubuntu, brew install unrar on macOS).
+
+### **Installation**
+
+1. **Clone the repository**:  
+   git clone https://github.com/your-repo/your-project-name.git  
+   cd your-project-name
+
+2. **Install Python dependencies**:  
+   pip install \-r requirements.txt
