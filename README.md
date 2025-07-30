@@ -21,8 +21,8 @@ Before you begin, ensure you have the following installed:
 ### **Installation**
 
 1. **Clone the repository**:  
-   git clone https://github.com/your-repo/your-project-name.git  
-   cd robust-semg
+   git clone https://github.com/leloso/sEMG
+   cd sEMG
 
 2. **Install Python dependencies**:  
    pip install \-r requirements.txt
