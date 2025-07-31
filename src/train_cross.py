@@ -4,6 +4,7 @@ import sys
 
 import torch
 import torch.nn as nn
+from torch.utils.data import random_split
 import yaml
 
 import models
@@ -19,14 +20,14 @@ model_dict = {
     'CNN': models.CNN,
     'CNN_LSTM': models.CNN_LSTM,
     'TCN': models.TCN,
-    'MESTNet': models.MESTNet
+    'MESTNet': models.MESTNet,
+    'MESTNet_DA': models.MESTNet_DA
 }
         
-  
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
-        description="Trains a Neural Network archtiecture under a non-ideal condition factor."
+        description="Trains a Neural Network archtiecture under a non-ideal condition factor, in cross factor manner."
     )
     parser.add_argument(
         "--result_dir",
@@ -126,46 +127,59 @@ if __name__ == '__main__':
             subjects = cfg['filter']['subjects']
         )
 
-        train_dataset = BaseDataset(
+        full_train_dataset = BaseDataset(
             data_file,
             idxs=train_idxs,
             load_in_memory=True
         )
 
+        # 80 - 20 train-val split
+        train_size = int(cfg['training']['val_split'] / 100 * len(full_train_dataset))
+        val_size = len(full_train_dataset) - train_size
+
+        train_data, val_data = random_split(full_train_dataset, [train_size, val_size])
+
         # make dataloaders
         train_loader = torch.utils.data.DataLoader(
-            train_dataset, 
+            train_data, 
             batch_size=cfg['training']['batch_size'], 
             shuffle=True, 
             num_workers=cfg['training']['num_workers']
         )
 
-        val_idxs = filter_data_from_h5(
-            data_file=data_file, 
-            positions = cfg['filter']['positions'],
-            sessions = cfg['filter']['sessions'],
-            repetitions=r,
-            subjects = cfg['filter']['subjects']
-        )
-        
-        val_dataset = BaseDataset(
-            data_file,
-            idxs=val_idxs,
-            load_in_memory=False,
-            subset = cfg['validation']['val_split'] / 100,
-        )
-
         val_loader = torch.utils.data.DataLoader(
-            val_dataset, 
+            val_data, 
             batch_size=cfg['validation']['batch_size'], 
             shuffle=False, 
             num_workers=cfg['validation']['num_workers']
         )
 
+        test_idxs = filter_data_from_h5(
+            data_file=data_file, 
+            positions = cfg['filter']['positions'],
+            sessions = cfg['filter']['sessions'],
+            repetitions=r,
+            subjects = cfg['filter']['specific_subjects']
+        )
+        
+        test_dataset = BaseDataset(
+            data_file,
+            idxs=test_idxs,
+            load_in_memory=True,
+            subset = 0.2
+        )
+
+        test_loader = torch.utils.data.DataLoader(
+            test_dataset, 
+            batch_size=cfg['training']['val_batch_size'], 
+            shuffle=False, 
+            num_workers=cfg['training']['num_workers']
+        )
+
         trained_model_path = train(
             model, 
             train_loader=train_loader, 
-            val_loaders=val_loader, 
+            val_loaders=[val_loader, test_loader], 
             reference_dir=model_dir,
             repetition=r,
             cfg = cfg

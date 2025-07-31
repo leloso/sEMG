@@ -281,7 +281,7 @@ class SEBlock(nn.Module):
     def forward(self, x):
         # x: [B, C, T]
         b, c, t = x.size()
-        y = F.adaptive_avg_pool1d(x, 1).view(b, c)  # [B, C]
+        y = torch.mean(x, dim=2)
         y = F.relu(self.fc1(y))
         y = torch.sigmoid(self.fc2(y)).view(b, c, 1)
         return x * y  # broadcast to [B, C, T]
@@ -351,7 +351,7 @@ class MESTNet(BaseModel):
 
         return cwt_out.to(dtype=torch.float32)
     
-    def forward(self, source_input, target_input=None):
+    def forward(self, input):
         # Input: time-freq merged -> (channels+freq_scales, timesteps)
 
         t = self.time_branch(input)   # [B, T, 128]
@@ -362,33 +362,6 @@ class MESTNet(BaseModel):
         logits = self.classifier(gru_out[:, -1, :]) # use only last timestep output for projection
         
         return logits    # [B, num_classes]
-
-    def training_step(self, batch, batch_idx):
-        source_sample, source_label = batch
-
-        # 1. Forward pass for source and target
-        source_logits = self(source_sample)
-
-        # 2. Calculate Classification Loss (on source data)
-        
-        loss = self.loss(source_logits, source_label)
-        self.log('cross_ent_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
-
-        return loss
-    
-    # pure prediction-label cross entropy / accuracy
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-
-        source_sample, source_label = batch # No need for target_sample in validation for classification metric
-        source_logits = self(source_sample)
-        val_loss = self.loss(source_logits, source_label)
-        
-        preds = torch.argmax(source_logits, dim=1)
-        acc = (preds == source_label).float().mean()
-
-        self.log('val_loss', val_loss, on_step=False, on_epoch=True)
-        self.log('val_acc', acc, on_step=False, on_epoch=True)
-        return val_loss
 
 
 class MESTNet_DA(MESTNet):

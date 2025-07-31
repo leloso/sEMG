@@ -11,14 +11,23 @@ from torch.utils.data import DataLoader
 import models
 from dataset import BaseDataset
 from utils import filter_data_from_h5, display_results
-None
+
+model_map = {
+        'CNN': models.CNN,
+        'CNN_GRU': models.CNN_GRU,
+        'CNN_BiGRU': models.CNN_BiGRU,
+        'CNN_LSTM': models.CNN_LSTM,
+        'TCN': models.TCN,
+        'MESTNet': models.MESTNet
+    }
+
+
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
         description="Evaluates performance on multi factor condition."
     )
-     
     parser.add_argument(
         "--models_dir",
         type=str,
@@ -73,15 +82,6 @@ if __name__ == '__main__':
 
     accuracies = {}
 
-    model_map = {
-        'CNN': models.CNN,
-        'CNN_GRU': models.CNN_GRU,
-        'CNN_BiGRU': models.CNN_BiGRU,
-        'CNN_LSTM': models.CNN_LSTM,
-        'TCN': models.TCN,
-        'MESTNet': models.MESTNet
-    }
-
     data_file = cfg['dataset']['data_file']
 
     for model_name, model_class in model_map.items():
@@ -92,7 +92,7 @@ if __name__ == '__main__':
         model_dir = os.path.join(models_dir, model_name)
 
         for r in range(3):
-            checkpoint_path = os.path.join(model_dir, f'r{r}-final.ckpt')
+            checkpoint_path = os.path.join(model_dir, f'best-r{r}.ckpt')
 
             if not os.path.isfile(checkpoint_path):
                 print(f"Skipping testing for model {model_name} and rep: {r}, checkpoint not found")
@@ -136,12 +136,8 @@ if __name__ == '__main__':
             
             accuracies[model_name][f'r{r}'] = results[0]['test_acc']
     
-    # save accuracies for future
-    with open(os.path.join(result_dir, 'eval_results.json', "w")) as outfile:
+    # save accuracies for future use
+    with open(os.path.join(result_dir, 'eval_results.json'), "w") as outfile:
         json.dump(accuracies, outfile, indent=4)
     
     display_results(accuracy_dict=accuracies)
-
-    
-
-    

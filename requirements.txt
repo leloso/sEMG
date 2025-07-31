@@ -23,14 +23,17 @@ numpy==2.1.2
 packaging==25.0
 pillow==11.0.0
 propcache==0.3.2
+protobuf==6.31.1
 ptwt==1.0.0
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pytorch-lightning==2.5.2
 PyWavelets==1.8.0
 PyYAML==6.0.2
+scipy==1.16.1
 six==1.17.0
 sympy==1.13.3
+tensorboardX==2.6.4
 torch==2.7.1+cpu
 torchaudio==2.7.1+cpu
 torchmetrics==1.8.0

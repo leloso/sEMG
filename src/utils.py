@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -80,7 +80,7 @@ def preprocess_signal(signal: np.ndarray, config: dict) -> np.ndarray:
 
     return processed_data
 
-
+# used to filter indices out of total h5 file
 def filter_data_from_h5(
         data_file: str, 
         sessions: List[int] = None, 
@@ -116,6 +116,7 @@ def filter_data_from_h5(
     
     return indices
 
+# display func for showcasing results of training on a single factor
 def display_results(accuracy_dict):
 
     model_names = list(accuracy_dict.keys())
@@ -154,4 +155,3 @@ def display_results(accuracy_dict):
     print("-" * 40)
     for model, mean, std in zip(model_names, means, stds):
         print(f"{model:15}: {mean:.3f} ± {std:.3f}")
-
