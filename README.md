@@ -1,109 +1,111 @@
- **SeNic Data Processing Pipeline**
+# sEMG Signal Processing and Classification
 
-This repository provides a robust pipeline for processing the raw data from the [SeNic dataset](https://www.google.com/search?q=https://github.com/BoZhuBo/SeNic.git), transforming it from compressed RAR archives into a structured HDF5 file suitable for machine learning applications, particularly with PyTorch.
+This repository provides a complete pipeline for processing and classifying surface Electromyography (sEMG) signals from the [SeNic dataset](https://github.com/BoZhuBo/SeNic). The project uses PyTorch Lightning for model training and evaluation, and provides a structured workflow from raw data extraction to model analysis.
 
-## **✨ Features**
+## Features
 
-* **Automated Extraction**: Uncompress RAR archives recursively.  
-* **Flexible Preprocessing**: Filter and window time-series data using a configurable YAML file.  
-* **Hierarchical Output**: Maintain original directory structure for processed data.  
-* **Unified Dataset**: Consolidate all processed data into a single HDF5 file for efficient loading.
+*   **Automated Data Preparation**: Scripts to handle `.rar` extraction, signal preprocessing, and dataset consolidation.
+*   **Configurable Workflow**: YAML files to easily manage preprocessing, training, and model parameters.
+*   **Cross-Validation**: Built-in 3-fold cross-validation for robust model evaluation.
+*   **Multiple Architectures**: Supports several deep learning models, including CNN, TCN, and MESTNet.
+*   **Modular and Extensible**: The code is organized into logical modules for easy extension and modification.
 
-## **🚀 Getting Started**
+## Getting Started
 
-### **Prerequisites**
+### Prerequisites
 
-Before you begin, ensure you have the following installed:
+*   Python 3.8+
+*   `unrar` command-line tool. Install it with `sudo apt-get install unrar` (Debian/Ubuntu) or `brew install unrar` (macOS).
 
-* Python 3.8+  
-* unrar command-line tool (install via your system's package manager, e.g., sudo apt-get install unrar on Debian/Ubuntu, brew install unrar on macOS).
+### Installation
 
-### **Installation**
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/leloso/sEMG
+    cd sEMG
+    ```
 
-1. **Clone the repository**:  
-   git clone https://github.com/leloso/sEMG
-   cd sEMG
+2.  **Install Python dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-2. **Install Python dependencies**:  
-   pip install \-r requirements.txt
+## Usage
 
-## **📖 Usage**
+The workflow is divided into four main stages: data preparation, preprocessing, dataset building, and model training/evaluation.
 
-Follow these steps to process the SeNic dataset:
+### 1. Data Preparation
 
-### **1\. Acquire Raw Data**
+1.  **Download the raw data** from the [SeNic GitHub repository](https://github.com/BoZhuBo/SeNic).
+2.  Place the downloaded `.rar` files into a directory, for example, `raw_data/`.
+3.  **Extract the archives** using the `unrar_script.py`:
+    ```bash
+    python src/unrar_script.py raw_data/
+    ```
+    This will extract the contents into the same directory. You can use the `--delete` flag to remove the `.rar` files after extraction.
 
-First, download the raw .rar data files from the [SeNic GitHub repository](https://www.google.com/search?q=https://github.com/BoZhuBo/SeNic.git). Place these files in a designated root directory (e.g., raw\_data/).
+### 2. Preprocessing
 
-### **2\. Extract RAR Archives**
+The `preprocess.py` script processes the extracted CSV files, applies filters, and windows the data into `.npz` files. The preprocessing parameters are defined in `config/preprocess.yaml`.
 
-Use the unrar\_script.py to extract the contents of the .rar files. This script will recursively search for .rar files and extract them.  
-python unrar\_script.py \<directory\_path\> \[--delete\]
+```bash
+python src/preprocess.py --input_dir raw_data/ --output_dir processed_data/ --config_file config/preprocess.yaml
+```
 
-* \<directory\_path\>: The root directory where your .rar files are located (e.g., raw\_data).  
-* \--delete: (Optional) If present, .rar files will be deleted after successful extraction.
+### 3. Building the HDF5 Dataset
 
-**Example**:  
-python unrar\_script.py raw\_data \--delete
+Consolidate the preprocessed `.npz` files into a single HDF5 file for efficient loading during training.
 
-### **3\. Preprocess and Window Data**
+```bash
+python src/build_hdf5.py --data_dir processed_data/ --hdf5_path emg_data.h5
+```
 
-The preprocess.py script filters and windows the extracted CSV data, saving the processed signals as compressed NPZ files. It replicates the original directory hierarchy in the output directory.  
-python preprocess.py \--input\_dir \<input\_directory\> \--output\_dir \<output\_directory\> \--config\_file \<config\_file\_path\>
+### 4. Model Training
 
-* \--input\_dir: The root directory containing the extracted CSV files (e.g., raw\_data/extracted).  
-* \--output\_dir: The root directory where processed NPZ files will be saved (e.g., processed\_data).  
-* \--config\_file: Path to a YAML configuration file specifying preprocessing parameters (e.g., config/preprocessing\_config.yaml).
+The `train.py` script performs 3-fold cross-validation for a specified model and experiment configuration. The training parameters are defined in `config/train.yaml`.
 
-**Example**:  
-python preprocess.py \--input\_dir raw\_data/extracted \--output\_dir processed\_data \--config\_file config/preprocessing\_config.yaml
+```bash
+python src/train.py --result_dir results/ --config_file config/train.yaml
+```
 
-**Note on Configuration**: The config\_file (e.g., config/preprocessing\_config.yaml) is crucial for defining filtering parameters, window sizes, and other preprocessing specifics. Ensure this file is correctly set up according to your data requirements.
+The script will train and save the best model for each fold in the `results/` directory.
 
-### **4\. Build HDF5 Dataset**
+### 5. Model Evaluation
 
-Finally, build\_hdf5.py consolidates all the generated NPZ files into a single, large HDF5 file, which is highly efficient for loading into PyTorch or other deep learning frameworks.  
-python build\_hdf5.py \[--data\_dir \<processed\_data\_directory\>\] \[--hdf5\_path \<output\_hdf5\_path\>\]
+After training, you can evaluate the models using the `eval.py` script.
 
-* \--data\_dir: Directory containing the subject/session/NPZ files generated by preprocess.py (default: processed\_data).  
-* \--hdf5\_path: Destination path for the HDF5 file (default: processed\_data/emg\_data.h5).
+```bash
+python src/eval.py --models_dir results/ --config_file config/train.yaml --result_dir evaluation_results/
+```
 
-**Example**:  
-python build\_hdf5.py \--data\_dir processed\_data \--hdf5\_path datasets/emg\_data.h5
+This will load the trained models and generate evaluation metrics, which will be saved in the `evaluation_results/` directory.
 
-#### Training Process
+## Project Structure
 
-The sccript train.py automatically performs training for a given non-ideal factor in the multi-factor analysis
-as of now only. For each repetition fold the following are carried out:
+```
+sEMG/
+├── config/
+│   ├── preprocess.yaml
+│   └── train.yaml
+├── src/
+│   ├── build_hdf5.py
+│   ├── dataset.py
+│   ├── eval.py
+│   ├── models.py
+│   ├── preprocess.py
+│   ├── train.py
+│   └── unrar_script.py
+├── README.md
+└── requirements.txt
+```
 
-1. **Model Selection**: Supports multiple architectures including CNN_GRU, CNN_BiGRU, CNN, CNN_LSTM, TCN, and MESTNet
-2. **Data Splitting**: 
-   - Uses 2 repetitions for training (with 80-20 train-validation split)
-   - Reserves 1 repetition for testing (20% subset for efficiency)
-3. **Cross-Validation**: Iterates through all 3 repetitions as test sets (r=0, r=1, r=2)
-4. **Model Training**: Each fold trains independently with Adam optimizer and CrossEntropy loss
-5. **Results Storage**: Saves trained models and train logs in organized directory structure:
-   ```
-   <result_dir>/
-   ├── <experiment_factor>/
-   │   └── <model_name>/
-   │       ├── r0_final.ckpt
-   │       ├── r1_final.ckpt
-   │       └── r2_final.ckpt
-   ```
+## Model Architectures
 
-#### Configuration Requirements
+The `src/models.py` file contains implementations of several deep learning architectures:
 
-Your training configuration YAML file must include the following sections:
+*   **CNN**: A baseline 1D Convolutional Neural Network.
+*   **CNN_GRU, CNN_BiGRU, CNN_LSTM**: Hybrid models combining CNN layers for feature extraction and RNN layers for temporal modeling.
+*   **TCN**: A Temporal Convolutional Network with dilated convolutions.
+*   **MESTNet**: A Multi-scale EMG Signal Transformer with time-frequency analysis.
 
-- **dataset**: Data file path, sequence length, number of classes, channels
-- **training**: Learning rate, batch size, split, number of workers
-- **optimizer**: Optimization parameters including weight decay
-- **model**: Architecture name and specific parameters
-- **experiment**: Factor name for organizing results
-- **filter**: Subject filtering, positions, sessions, and repetitions
-- **validation**: Validation-specific batch size and workers
-
-This cross-validation approach ensures robust evaluation across different data splits, providing reliable performance metrics for comparing model architectures under various non-ideal conditions.
-
-## 📊 Results Analysis
+You can select the model to be trained in the `config/train.yaml` file.
